@@ -1,55 +1,122 @@
-import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Calendar, Clock, User, Video, MapPin } from 'lucide-react';
-import { format } from 'date-fns';
-import { useNavigate } from 'react-router-dom';
-import DashboardNavbar from '@/components/DashboardNavbar';
-import ScheduleModal from '@/components/ScheduleModal';
+import { useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Calendar, Clock, User, Video, MapPin } from "lucide-react";
+import { format } from "date-fns";
+import { useNavigate } from "react-router-dom";
+import DashboardNavbar from "@/components/DashboardNavbar";
+import ScheduleModal from "@/components/ScheduleModal";
+import axios from "axios";
+import { useEffect } from "react";
 
-// Mock data - replace with real data later
-const mockCandidates = [
-  { id: 1, name: 'Alice Johnson', email: 'alice@example.com', role: 'Frontend Developer', experience: '3 years' },
-  { id: 2, name: 'Bob Smith', email: 'bob@example.com', role: 'Backend Developer', experience: '5 years' },
-  { id: 3, name: 'Carol Davis', email: 'carol@example.com', role: 'Full Stack Developer', experience: '4 years' },
-  { id: 4, name: 'David Wilson', email: 'david@example.com', role: 'UI/UX Designer', experience: '2 years' },
-   { id: 4, name: 'David Wilson', email: 'david@example.com', role: 'UI/UX Designer', experience: '2 years' },
-    { id: 4, name: 'David Wilson', email: 'david@example.com', role: 'UI/UX Designer', experience: '2 years' },
-     { id: 4, name: 'David Wilson', email: 'david@example.com', role: 'UI/UX Designer', experience: '2 years' },
-      { id: 4, name: 'David Wilson', email: 'david@example.com', role: 'UI/UX Designer', experience: '2 years' },
-];
+
 
 const mockEvents = [
   {
     id: 1,
-    candidateName: 'Alice Johnson',
-    date: new Date('2025-08-25T01:52:00'),
-    jobDescription: 'Frontend Developer - React Position',
-    status: 'upcoming'
+    candidateName: "Alice Johnson",
+    date: new Date("2025-08-25T01:52:00"),
+    jobDescription: "Frontend Developer - React Position",
+    status: "upcoming",
   },
   {
     id: 2,
-    candidateName: 'Bob Smith',
-    date: new Date('2024-01-26T14:30:00'),
-    jobDescription: 'Backend Developer - Node.js Position',
-    status: 'upcoming'
+    candidateName: "Bob Smith",
+    date: new Date("2024-01-26T14:30:00"),
+    jobDescription: "Backend Developer - Node.js Position",
+    status: "upcoming",
   },
-    {
+  {
     id: 3,
-    candidateName: 'Bob Smith',
-    date: new Date('2024-01-26T14:30:00'),
-    jobDescription: 'Backend Developer - Node.js Position',
-    status: 'upcoming'
+    candidateName: "Bob Smith",
+    date: new Date("2024-01-26T14:30:00"),
+    jobDescription: "Backend Developer - Node.js Position",
+    status: "upcoming",
   },
 ];
 
-
 const InterviewerDashboard = () => {
-  const [selectedCandidate, setSelectedCandidate] = useState(null);
+  // const token = localStorage.getItem("token");
+  const [candidates, setCandidates] = useState<any[]>([]);
+  const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [events, setEvents] = useState<any[]>([]);
   const navigate = useNavigate();
+   
+  
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const user = localStorage.getItem("user");
+    console.log(token);
+    if (!token || !user) {
+      console.log(token , user) ;
+      navigate("/"); // not logged in
+
+      return;
+    }
+
+    const parsedUser = JSON.parse(user);
+    if (parsedUser.role !== "interviewer") {
+      navigate("/"); // not interviewer
+      return;
+    }
+
+    // fetch candidates
+    console.log(token);
+    const fetchCandidates = async () => {
+      try {
+        const res = await axios.get(
+          "http://localhost:4000/api/data/interviewees",
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        setCandidates(res.data); // backend should return an array of candidates
+      } catch (err) {
+        console.error(err);
+        navigate("/"); // if token invalid → redirect
+      }
+    };
+
+    fetchCandidates();
+
+        const fetchEvents = async () => {
+          try {
+            const res = await axios.get(
+              "http://localhost:4000/api/data/my-interviews",
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              }
+            );
+
+            const formatted = res.data.map((interview: any) => ({
+              id: interview._id,
+              candidateName: interview.interviewee?.name,
+              date: new Date(interview.date), // backend saves combined date+time
+              jobDescription: interview.jobDescription,
+              status: "upcoming", // you can calculate based on date if needed
+            }));
+            console.log(`here is the data that came from the req  and full response `, res , formatted)
+            setEvents(formatted);
+          } catch (err) {
+            console.error("Error fetching interviews:", err);
+          }
+        };
+
+        fetchEvents();
+  }, [navigate]);
 
   const handleScheduleInterview = (candidate: any) => {
     setSelectedCandidate(candidate);
@@ -58,19 +125,24 @@ const InterviewerDashboard = () => {
 
   const isEventLive = (eventDate: Date) => {
     const now = new Date();
-    console.log(now);
-    const timeDiff = eventDate.getTime() - now.getTime();
-    return timeDiff <= 300000 && timeDiff >= -300000; // 5 minutes before to 5 minutes after
+    // console.log(now);
+    // const timeDiff = eventDate.getTime() - now.getTime();
+    return 1 ;
+    // return timeDiff <= 300000 && timeDiff >= -300000; // 5 minutes before to 5 minutes after
   };
 
   return (
     <div className="min-h-screen bg-background">
       <DashboardNavbar />
-      
+
       <div className="container mx-auto p-6">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Interviewer Dashboard</h1>
-          <p className="text-muted-foreground">Manage candidates and schedule interviews</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            Interviewer Dashboard
+          </h1>
+          <p className="text-muted-foreground">
+            Manage candidates and schedule interviews
+          </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -86,21 +158,27 @@ const InterviewerDashboard = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {mockCandidates.map((candidate) => (
+              {candidates.map((candidate) => (
                 <div
-                  key={candidate.id}
+                  key={candidate._id}
                   className="flex items-center space-x-4 p-4 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors"
                   onClick={() => handleScheduleInterview(candidate)}
                 >
                   <Avatar>
                     <AvatarFallback className="bg-primary text-primary-foreground">
-                      {candidate.name.split(' ').map(n => n[0]).join('')}
+                      {candidate.name
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-foreground">{candidate.name}</h3>
-                    <p className="text-sm text-muted-foreground">{candidate.email}</p>
-                    
+                    <h3 className="font-semibold text-foreground">
+                      {candidate.name}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {candidate.email}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -114,46 +192,47 @@ const InterviewerDashboard = () => {
                 <Calendar className="h-5 w-5 text-primary" />
                 Upcoming Interviews
               </CardTitle>
-              <CardDescription>
-                Your scheduled interviews
-              </CardDescription>
+              <CardDescription>Your scheduled interviews</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {mockEvents.length === 0 ? (
+              {events.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>No interviews scheduled yet</p>
                 </div>
               ) : (
-                mockEvents.map((event) => (
+                events.map((event) => (
                   <div
                     key={event.id}
                     className="p-4 rounded-lg border space-y-3"
-                    
                   >
                     <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-foreground">{event.candidateName}</h3>
+                      <h3 className="font-semibold text-foreground">
+                        {event.candidateName}
+                      </h3>
                       {isEventLive(event.date) && (
                         <Badge className="bg-accent text-accent-foreground">
                           Live
                         </Badge>
                       )}
                     </div>
-                    <p className="text-sm text-muted-foreground">{event.jobDescription}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {event.jobDescription}
+                    </p>
                     <div className="flex items-center gap-4 text-sm text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <Calendar className="h-4 w-4" />
-                        {format(event.date, 'MMM dd, yyyy')}
+                        {format(event.date, "MMM dd, yyyy")}
                       </div>
                       <div className="flex items-center gap-1">
                         <Clock className="h-4 w-4" />
-                        {format(event.date, 'HH:mm')}
+                        {format(event.date, "HH:mm")}
                       </div>
                     </div>
                     {isEventLive(event.date) && (
-                      <Button 
+                      <Button
                         className="w-full bg-gradient-hero hover:opacity-90"
-                        onClick={() => navigate('/meeting')}
+                        onClick={() => navigate("/meeting")}
                       >
                         <Video className="h-4 w-4 mr-2" />
                         Join Interview

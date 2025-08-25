@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import User from "../models/userSchema.js";
 
-export const protect = async (req, res, next) => {
+ const protect = async (req, res, next) => {
   let token;
 
   if (
@@ -16,9 +16,9 @@ export const protect = async (req, res, next) => {
 
       // Attach user to request (excluding password)
       req.user = await User.findById(decoded.id).select("-password");
-
+     
       if (!req.user) {
-        return res.status(401).json({ message: "User not found" });
+        return res.status(401).json({ message: "User not found by token" });
       }
 
       next();
@@ -32,3 +32,4 @@ export const protect = async (req, res, next) => {
     return res.status(401).json({ message: "No token, not authorized" });
   }
 };
+export default protect ;
