@@ -16,7 +16,7 @@ app.use(
     credentials: true,
   })
 );
-
+export const sessions = new Map(); 
 app.use(express.json());
 
 app.get("/", (_req, res) => res.json({ ok: true }));

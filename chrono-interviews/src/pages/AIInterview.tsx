@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,13 @@ const AIInterview = () => {
   const [transcript, setTranscript] = useState<any[]>([]);
   const recognitionRef = useRef<any>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // from navigate("/ai-interview", { state: {...} })
+  const { session, interview, result } = location.state || {};
+  const token = localStorage.getItem("token");
+  console.log(session) ;
+
 
   // -------- SPEECH FUNCTIONS ----------
   const speakText = (text: string) => {
@@ -37,17 +44,8 @@ const AIInterview = () => {
     });
   };
 
-  const startListening = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.start();
-    }
-  };
-
-  const stopListening = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
-  };
+  const startListening = () => recognitionRef.current?.start();
+  const stopListening = () => recognitionRef.current?.stop();
 
   // --------- SETUP ON MOUNT ----------
   useEffect(() => {
@@ -69,27 +67,28 @@ const AIInterview = () => {
       const userText = event.results[0][0].transcript;
       console.log("User said:", userText);
 
-      // Add to transcript
       setTranscript((prev) => [
         ...prev,
         { speaker: "User", text: userText, timestamp: new Date() },
       ]);
 
-      // Send to backend
+      // send to backend with token + sessionId
       const res = await fetch("http://localhost:4000/api/ai/calling", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: userText }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ text: userText, session }),
       });
+
       const data = await res.json();
 
-      // Show AI reply in transcript
       setTranscript((prev) => [
         ...prev,
         { speaker: "AI", text: data.reply, timestamp: new Date() },
       ]);
 
-      // AI speaks → after done, start listening again
       await speakText(data.reply);
       startListening();
     };
@@ -98,37 +97,43 @@ const AIInterview = () => {
 
     // ---- INITIAL STARTUP MESSAGE ----
     (async () => {
-      const res = await fetch("http://localhost:4000/api/ai/calling", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: "___INIT_HELLO___" }),
-      });
-      const data = await res.json();
+      try {
+        const res = await fetch("http://localhost:4000/api/ai/calling", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ text: "___INIT_HELLO___", session }),
+        });
 
-      setTranscript((prev) => [
-        ...prev,
-        { speaker: "AI", text: data.reply, timestamp: new Date() },
-      ]);
+        const data = await res.json();
 
-      await speakText(data.reply);
-      startListening();
+        setTranscript((prev) => [
+          ...prev,
+          { speaker: "AI", text: data.reply, timestamp: new Date() },
+        ]);
+
+        await speakText(data.reply);
+        startListening();
+      } catch (err) {
+        console.error("Error initializing AI session:", err);
+      }
     })();
-  }, []);
+  }, [session, token]);
 
   const handleEndCall = () => {
     stopListening();
-    navigate("/results");
+    navigate("/results", { state: { session, interview, result } });
   };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString("en-US", {
+  const formatTime = (date: Date) =>
+    date.toLocaleTimeString("en-US", {
       hour12: false,
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
     });
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <DashboardNavbar />

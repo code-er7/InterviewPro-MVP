@@ -110,7 +110,7 @@ const IntervieweeDashboard = () => {
         // Navigate to AI Interview page with session + interview info
         navigate("/ai-interview", {
           state: {
-            sessionId: session._id,
+            session,
             interview: session.interview, 
             result: session.result,
           },

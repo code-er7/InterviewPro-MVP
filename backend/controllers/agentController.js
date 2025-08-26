@@ -1,6 +1,7 @@
 import AIBotSession from "../models/aiBotSession.js";
 import Interview from "../models/interviewSchema.js";
-
+import agentResponse from "../agents/conversastionalAgent.js";
+import { sessions } from "../server.js";
 
 
 
@@ -80,25 +81,56 @@ export const createAIBotSession = async (req, res) => {
 
 
 
-// Dummy responses for now
-const dummyReplies = [
-  "Hello! I am your AI assistant.",
-  "I can help you with information or tasks.",
-  "Let's get started!",
-];
-
-let counter = 0;
-
 export async function LiveCalling(req, res) {
-  const { text } = req.body; // text from frontend
-  console.log("User said:", text);
+  try {
+    const { text, session } = req.body;
 
-  // Simulate agent processing delay
-  await new Promise((resolve) => setTimeout(resolve, 2000));
+    if (!text || !session?._id) {
+      return res.status(400).json({ message: "Invalid request body" });
+    }
 
-  // Cycle through dummy replies
-  const reply = dummyReplies[counter % dummyReplies.length];
-  counter++;
+    const sessionId = session._id;
+    const intervieweeName =
+      session?.interview?.interviewee?.name || "Candidate";
+    const jobDescription =
+      session?.interview?.jobDescription || "the given job";
+    const interviewerName =
+      session?.interview?.interviewer?.name || "Interviewer";
 
-  res.json({ reply });
+    let promptText = text;
+
+    // Handle INIT message → set up proper intro prompt
+    if (text === "___INIT_HELLO___") {
+      promptText = `You are acting as an interviewer named ${interviewerName}.  
+The interviewee is ${intervieweeName}.  
+The role is described as: "${jobDescription}".  
+
+Start the interview in a natural way (e.g., greet and ask the first question).`;
+    }
+
+    // Get AI’s reply
+    const reply = await agentResponse(sessionId, promptText);
+
+    
+    if (!sessions.has(sessionId)) {
+      sessions.set(sessionId, { history: [] });
+    }
+    const storedSession = sessions.get(sessionId);
+    storedSession.meta = {
+      interviewee: intervieweeName,
+      interviewer: interviewerName,
+      jobDescription,
+    };
+
+    // Send back AI response + sessionId (so frontend can keep track)
+    res.json({
+      reply,
+      sessionId,
+      meta: storedSession.meta,
+    });
+  } catch (error) {
+    console.log("Gemini key:", process.env.GEMINI_API_KEY?.slice(0, 6)); 
+    console.error("Error in LiveCalling:", error);
+    res.status(500).json({ message: "Error generating AI response" });
+  }
 }
