@@ -11,6 +11,7 @@ import IntervieweeDashboard from "./pages/IntervieweeDashboard";
 import Meeting from "./pages/Meeting";
 import Results from "./pages/Results";
 import NotFound from "./pages/NotFound";
+import AIInterview from "./pages/AIInterview";
 
 const queryClient = new QueryClient();
 
@@ -24,10 +25,17 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
-          <Route path="/interviewer-dashboard" element={<InterviewerDashboard />} />
-          <Route path="/interviewee-dashboard" element={<IntervieweeDashboard />} />
+          <Route
+            path="/interviewer-dashboard"
+            element={<InterviewerDashboard />}
+          />
+          <Route
+            path="/interviewee-dashboard"
+            element={<IntervieweeDashboard />}
+          />
           <Route path="/meeting" element={<Meeting />} />
           <Route path="/results" element={<Results />} />
+          <Route path="/ai-interview" element={<AIInterview />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
