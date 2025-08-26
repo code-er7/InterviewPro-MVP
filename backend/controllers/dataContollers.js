@@ -3,34 +3,17 @@ import Interview from "../models/interviewSchema.js";
 
 export const scheduleInterview = async (req, res) => {
   try {
-    const { intervieweeId, date, time, jobDescription } = req.body;
+    const { intervieweeId, date, time, jobDescription , isAI } = req.body;
 
-    if (!intervieweeId || !date  || !jobDescription) {
+    if (!intervieweeId || !date  || !jobDescription || !isAI) {
       return res.status(400).json({ message: "All fields are required" });
     }
-
-    // const baseDate = new Date(date);
-
-    
-    // const [hourString, minuteString] = time.split(":");
-    // let hours = parseInt(hourString, 10);
-    // let minutes = parseInt(minuteString, 10);
-
-    
-    // if (time.toLowerCase().includes("pm") && hours < 12) hours += 12;
-    // if (time.toLowerCase().includes("am") && hours === 12) hours = 0;
-
-   
-    // baseDate.setHours(hours);
-    // baseDate.setMinutes(minutes);
-    // baseDate.setSeconds(0);
-    // baseDate.setMilliseconds(0);
 
     const interview = new Interview({
       interviewer: req.user._id,
       interviewee: intervieweeId,
       date,
-      time :"dummy",
+      isAI ,
       jobDescription,
     });
     await interview.save();
@@ -71,3 +54,20 @@ export const getInterviewerInterviews = async (req, res) => {
     res.status(500).json({ message: "Error fetching interviews" });
   }
 };
+export const getIntervieweeInterviews = async (req, res) => {
+  try {
+    const intervieweeId = req.user._id;
+
+    const interviews = await Interview.find({
+      interviewee: intervieweeId,
+    })
+      .populate("interviewee", "name email role") // populate interviewee
+      .populate("interviewer", "name email role"); // populate interviewer
+
+    res.json(interviews);
+  } catch (error) {
+    console.error("Error fetching interviews:", error);
+    res.status(500).json({ message: "Error fetching interviews" });
+  }
+};
+

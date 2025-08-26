@@ -4,7 +4,7 @@ const interviewSchema = new mongoose.Schema(
   {
     interviewer: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User", 
+      ref: "User",
       required: true,
     },
     interviewee: {
@@ -16,9 +16,9 @@ const interviewSchema = new mongoose.Schema(
       type: Date, // stores both date + time, or you can split if you prefer
       required: true,
     },
-    time: {
-      type: String, 
-      required: true,
+    isAI: {
+      type: Boolean,
+      default: false, 
     },
     jobDescription: {
       type: String,

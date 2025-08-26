@@ -10,15 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { CalendarIcon, Bot, User } from "lucide-react";
 import { format } from "date-fns";
-import { CalendarIcon, Clock } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import axios from "axios";
 
@@ -30,8 +23,8 @@ interface ScheduleModalProps {
 
 const ScheduleModal = ({ isOpen, onClose, candidate }: ScheduleModalProps) => {
   const [date, setDate] = useState<Date>();
-  // const [time, setTime] = useState("");
   const [jobDescription, setJobDescription] = useState("");
+  const [isAI, setIsAI] = useState(false); // <-- new state
   const { toast } = useToast();
 
   const handleSchedule = async () => {
@@ -45,15 +38,15 @@ const ScheduleModal = ({ isOpen, onClose, candidate }: ScheduleModalProps) => {
     }
 
     try {
-      const token = localStorage.getItem("token"); // or however you store JWT
+      const token = localStorage.getItem("token");
 
       const res = await axios.post(
-        "http://localhost:4000/api/data/schedule", // backend route
+        "http://localhost:4000/api/data/schedule",
         {
-          intervieweeId: candidate._id, // interviewee comes from props
-          date: date.toISOString(), // send as ISO string (backend parses it)
-          // time,
+          intervieweeId: candidate._id,
+          date: date.toISOString(),
           jobDescription,
+          isAI, // <-- include in request
         },
         {
           headers: {
@@ -67,10 +60,10 @@ const ScheduleModal = ({ isOpen, onClose, candidate }: ScheduleModalProps) => {
         description: `Interview with ${candidate?.name} has been scheduled successfully.`,
       });
 
-      // Reset form + close modal
+      // Reset form + close
       setDate(undefined);
-      // setTime("");
       setJobDescription("");
+      setIsAI(false);
       onClose();
     } catch (error: any) {
       toast({
@@ -112,20 +105,18 @@ const ScheduleModal = ({ isOpen, onClose, candidate }: ScheduleModalProps) => {
                 id="datetime"
                 type="datetime-local"
                 value={date ? format(date, "yyyy-MM-dd'T'HH:mm") : ""}
-                onChange={(e) => {
-                  const selected = new Date(e.target.value);
-                  setDate(selected);
-                }}
+                onChange={(e) => setDate(new Date(e.target.value))}
                 className="pl-10"
                 min={(() => {
                   const now = new Date();
-                  now.setMinutes(now.getMinutes() + 5); // enforce 5 mins ahead
+                  now.setMinutes(now.getMinutes() + 5);
                   return format(now, "yyyy-MM-dd'T'HH:mm");
                 })()}
-                step={300} // step in seconds (300 = 5 minutes)
+                step={300}
               />
             </div>
           </div>
+
           {/* Job Description */}
           <div className="space-y-2">
             <Label htmlFor="jobDescription">Job Description</Label>
@@ -136,6 +127,31 @@ const ScheduleModal = ({ isOpen, onClose, candidate }: ScheduleModalProps) => {
               onChange={(e) => setJobDescription(e.target.value)}
               rows={4}
             />
+          </div>
+
+          {/* Who will take interview */}
+          <div className="space-y-2">
+            <Label>Who will take the interview?</Label>
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant={isAI ? "outline" : "default"}
+                onClick={() => setIsAI(false)}
+                className="flex-1 flex items-center gap-2"
+              >
+                <User className="h-4 w-4" />
+                Myself
+              </Button>
+              <Button
+                type="button"
+                variant={isAI ? "default" : "outline"}
+                onClick={() => setIsAI(true)}
+                className="flex-1 flex items-center gap-2"
+              >
+                <Bot className="h-4 w-4" />
+                AI
+              </Button>
+            </div>
           </div>
         </div>
 
