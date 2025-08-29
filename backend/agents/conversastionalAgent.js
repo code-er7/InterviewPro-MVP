@@ -42,7 +42,7 @@ Respond as the interviewer.
 
   // Save to memory
   session.history.push({ user: userText, ai: reply });
-  console.log(session.history);
+  
   return reply;
 }
 

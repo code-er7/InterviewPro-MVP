@@ -4,6 +4,7 @@ import agentResponse from "../agents/conversastionalAgent.js";
 import { sessions } from "../server.js";
 import speech from "@google-cloud/speech";
 import textToSpeech from "@google-cloud/text-to-speech";
+import resultAgent from "../agents/resultGeneratorAgent.js";
 
 const speechClient = new speech.SpeechClient();
 const ttsClient = new textToSpeech.TextToSpeechClient();
@@ -147,5 +148,42 @@ Start the interview in a natural way (e.g., greet and ask the first question).`;
   } catch (error) {
     console.error("Error in LiveCalling:", error);
     res.status(500).json({ message: "Error processing live call" });
+  }
+}
+
+
+
+export async function endcall(req, res) {
+  try {
+    const { sessionId, transcription } = req.body;
+    console.log("Received:", { sessionId, transcription });
+
+    const session = await AIBotSession.findById(sessionId);
+    if (!session) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    session.state = "ended";
+
+    // Parse the transcription if it's a string
+    const parsedTranscription =
+      typeof transcription === "string"
+        ? JSON.parse(transcription)
+        : transcription;
+
+    // Process the results
+    const result = await resultAgent(parsedTranscription);
+    session.results = result;
+
+    await session.save();
+
+    return res.json({
+      success: true,
+      session,
+      results: result, // Also send results directly for frontend
+    });
+  } catch (error) {
+    console.error("Error in endcall:", error);
+    res.status(500).json({ error: "Failed to end call" });
   }
 }
