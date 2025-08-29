@@ -3,127 +3,184 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { PhoneOff, Bot, User } from "lucide-react";
+import { PhoneOff, Bot, User, Mic, Square } from "lucide-react";
 import DashboardNavbar from "@/components/DashboardNavbar";
 
 const AIInterview = () => {
   const [aiSpeaking, setAiSpeaking] = useState(false);
-  const [userSpeaking, setUserSpeaking] = useState(false);
+  const [recording, setRecording] = useState(false);
   const [transcript, setTranscript] = useState<any[]>([]);
-  const recognitionRef = useRef<any>(null);
+  const [isProcessing, setIsProcessing] = useState(false); // 🔥 disable mic while AI responds
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null); // 🔥 track AI audio
+
   const navigate = useNavigate();
   const location = useLocation();
 
   // from navigate("/ai-interview", { state: {...} })
   const { session, interview, result } = location.state || {};
   const token = localStorage.getItem("token");
-  console.log(session) ;
 
-
-  // -------- SPEECH FUNCTIONS ----------
-  const speakText = (text: string) => {
-    return new Promise<void>((resolve) => {
-      const utterance = new SpeechSynthesisUtterance(text);
-
-      const voices = speechSynthesis.getVoices();
-      if (voices.length > 0) {
-        utterance.voice = voices[0];
-      } else {
-        speechSynthesis.onvoiceschanged = () => {
-          utterance.voice = speechSynthesis.getVoices()[0];
-        };
+  // --------- CHECK SESSION VALIDITY ----------
+  useEffect(() => {
+    const checkSession = async () => {
+      if (!session || !session._id || session.state != 'active') {
+        navigate("/interviewee-dashboard"); // 🚪 invalid access
+        return;
       }
+    };
+    checkSession();
+  }, [session, navigate, token]);
 
-      utterance.onstart = () => setAiSpeaking(true);
-      utterance.onend = () => {
-        setAiSpeaking(false);
-        resolve();
-      };
+  // --------- END CALL ON LEAVE ----------
+  useEffect(() => {
+    const handleEnd = async () => {
+      // stop AI audio if still playing
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        audioRef.current = null;
+      }
+      if (session?._id) {
+        try {
+          await fetch("http://localhost:4000/api/ai/endcall", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ sessionId: session._id }),
+          });
+        } catch (err) {
+          console.error("Failed to end call:", err);
+        }
+      }
+    };
 
-      speechSynthesis.speak(utterance);
-    });
+    // Trigger on tab close / reload
+    window.addEventListener("beforeunload", handleEnd);
+    // Trigger on component unmount (route change)
+    return () => {
+      handleEnd();
+      window.removeEventListener("beforeunload", handleEnd);
+    };
+  }, [session, token]);
+
+  // --------- RECORDING FUNCTIONS ----------
+  const startRecording = async () => {
+    if (isProcessing || aiSpeaking) return; // 🔒 block mic
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mediaRecorder = new MediaRecorder(stream);
+    audioChunksRef.current = [];
+
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        audioChunksRef.current.push(event.data);
+      }
+    };
+
+    mediaRecorder.onstop = async () => {
+      const audioBlob = new Blob(audioChunksRef.current, {
+        type: "audio/webm",
+      });
+      await handleUserAudio(audioBlob);
+    };
+
+    mediaRecorder.start();
+    mediaRecorderRef.current = mediaRecorder;
+    setRecording(true);
   };
 
-  const startListening = () => recognitionRef.current?.start();
-  const stopListening = () => recognitionRef.current?.stop();
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    setRecording(false);
+  };
 
-  // --------- SETUP ON MOUNT ----------
-  useEffect(() => {
-    const SpeechRecognition =
-      (window as any).webkitSpeechRecognition ||
-      (window as any).SpeechRecognition;
+  // --------- SEND AUDIO TO BACKEND ----------
+  const handleUserAudio = async (audioBlob: Blob) => {
+    setIsProcessing(true); // 🔥 block mic
 
-    if (!SpeechRecognition) return;
+    // Convert blob to base64
+    const reader = new FileReader();
+    reader.readAsDataURL(audioBlob);
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = "en-US";
-    recognition.interimResults = false;
-    recognition.continuous = false;
+    reader.onloadend = async () => {
+      const base64Audio = reader.result as string;
 
-    recognition.onstart = () => setUserSpeaking(true);
-    recognition.onend = () => setUserSpeaking(false);
-
-    recognition.onresult = async (event: any) => {
-      const userText = event.results[0][0].transcript;
-      console.log("User said:", userText);
-
-      setTranscript((prev) => [
-        ...prev,
-        { speaker: "User", text: userText, timestamp: new Date() },
-      ]);
-
-      // send to backend with token + sessionId
       const res = await fetch("http://localhost:4000/api/ai/calling", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ text: userText, session }),
+        body: JSON.stringify({
+          session,
+          audio: base64Audio,
+        }),
       });
 
       const data = await res.json();
+      const { transcript, replyText, replyAudio } = data;
 
-      setTranscript((prev) => [
-        ...prev,
-        { speaker: "AI", text: data.reply, timestamp: new Date() },
-      ]);
-
-      await speakText(data.reply);
-      startListening();
-    };
-
-    recognitionRef.current = recognition;
-
-    // ---- INITIAL STARTUP MESSAGE ----
-    (async () => {
-      try {
-        const res = await fetch("http://localhost:4000/api/ai/calling", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ text: "___INIT_HELLO___", session }),
-        });
-
-        const data = await res.json();
-
+      // Add user transcript
+      if (transcript) {
         setTranscript((prev) => [
           ...prev,
-          { speaker: "AI", text: data.reply, timestamp: new Date() },
+          { speaker: "User", text: transcript, timestamp: new Date() },
         ]);
-
-        await speakText(data.reply);
-        startListening();
-      } catch (err) {
-        console.error("Error initializing AI session:", err);
       }
-    })();
-  }, [session, token]);
 
-  const handleEndCall = () => {
-    stopListening();
+      // Add AI reply
+      if (replyText) {
+        setTranscript((prev) => [
+          ...prev,
+          { speaker: "AI", text: replyText, timestamp: new Date() },
+        ]);
+      }
+
+      // Play AI audio
+      if (replyAudio) {
+        // stop any previous audio first
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        }
+
+        const audio = new Audio(`data:audio/mp3;base64,${replyAudio}`);
+        audioRef.current = audio;
+
+        audio.onplay = () => setAiSpeaking(true);
+        audio.onended = () => {
+          setAiSpeaking(false);
+          setIsProcessing(false); // 🔓 unlock mic
+          audioRef.current = null;
+        };
+        audio.play();
+      } else {
+        setIsProcessing(false); // 🔓 unlock mic if no audio
+      }
+    };
+  };
+
+  // --------- END CALL BUTTON ----------
+  const handleEndCall = async () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
+
+    await fetch("http://localhost:4000/api/ai/endcall", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ sessionId: session._id }),
+    });
+
     navigate("/results", { state: { session, interview, result } });
   };
 
@@ -134,6 +191,9 @@ const AIInterview = () => {
       minute: "2-digit",
       second: "2-digit",
     });
+
+
+
   return (
     <div className="min-h-screen bg-background">
       <DashboardNavbar />
@@ -154,7 +214,7 @@ const AIInterview = () => {
               variant="secondary"
               className="bg-red-500/10 text-red-600 border-red-200"
             >
-              Recording
+              {recording ? "Recording" : "Idle"}
             </Badge>
           </div>
         </div>
@@ -189,29 +249,48 @@ const AIInterview = () => {
                   {/* User Box */}
                   <div
                     className={`relative bg-gradient-to-br from-secondary/10 to-secondary/20 rounded-xl p-8 transition-all duration-300 ${
-                      userSpeaking
-                        ? "ring-4 ring-secondary/50 animate-bounce"
-                        : ""
+                      recording ? "ring-4 ring-secondary/50 animate-bounce" : ""
                     }`}
                   >
                     <div className="text-center">
                       <div
                         className={`w-24 h-24 mx-auto mb-4 rounded-full bg-gradient-secondary flex items-center justify-center transition-all ${
-                          userSpeaking ? "scale-110 shadow-glow" : ""
+                          recording ? "scale-110 shadow-glow" : ""
                         }`}
                       >
                         <User className="h-12 w-12 text-white" />
                       </div>
                       <h3 className="text-lg font-semibold">You</h3>
                       <p className="text-sm text-muted-foreground mt-1">
-                        {userSpeaking ? "Speaking..." : "Silent"}
+                        {recording ? "Recording..." : "Silent"}
                       </p>
                     </div>
                   </div>
                 </div>
 
                 {/* Controls */}
-                <div className="flex items-center justify-center gap-4">
+                <div className="flex items-center justify-center gap-6">
+                  {!recording ? (
+                    <Button
+                      variant="secondary"
+                      size="lg"
+                      onClick={startRecording}
+                      className="rounded-full w-16 h-16 bg-green-500 hover:bg-green-600"
+                      disabled={isProcessing || aiSpeaking} // 🔒 lock mic
+                    >
+                      <Mic className="h-6 w-6" />
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="destructive"
+                      size="lg"
+                      onClick={stopRecording}
+                      className="rounded-full w-16 h-16 bg-red-500 hover:bg-red-600"
+                    >
+                      <Square className="h-6 w-6" />
+                    </Button>
+                  )}
+
                   <Button
                     variant="destructive"
                     size="lg"

@@ -2,8 +2,11 @@ import AIBotSession from "../models/aiBotSession.js";
 import Interview from "../models/interviewSchema.js";
 import agentResponse from "../agents/conversastionalAgent.js";
 import { sessions } from "../server.js";
+import speech from "@google-cloud/speech";
+import textToSpeech from "@google-cloud/text-to-speech";
 
-
+const speechClient = new speech.SpeechClient();
+const ttsClient = new textToSpeech.TextToSpeechClient();
 
 
 export const createAIBotSession = async (req, res) => {
@@ -75,17 +78,11 @@ export const createAIBotSession = async (req, res) => {
 
 
 
-
-
-
-
-
-
 export async function LiveCalling(req, res) {
   try {
-    const { text, session } = req.body;
+    const { session, audio } = req.body; 
 
-    if (!text || !session?._id) {
+    if (!audio || !session?._id) {
       return res.status(400).json({ message: "Invalid request body" });
     }
 
@@ -97,40 +94,58 @@ export async function LiveCalling(req, res) {
     const interviewerName =
       session?.interview?.interviewer?.name || "Interviewer";
 
-    let promptText = text;
+    // Convert base64 → buffer
+    const audioBuffer = Buffer.from(audio.split(",")[1], "base64");
 
-    // Handle INIT message → set up proper intro prompt
-    if (text === "___INIT_HELLO___") {
-      promptText = `You are acting as an interviewer named ${interviewerName}.  
+    // --- 1. Speech to Text ---
+    const [sttResponse] = await speechClient.recognize({
+      audio: {
+        content: audioBuffer.toString("base64"),
+      },
+      config: {
+        encoding: "WEBM_OPUS", // change to "LINEAR16" if you send WAV
+        sampleRateHertz: 48000,
+        languageCode: "en-US",
+      },
+    });
+
+    const transcript = sttResponse.results
+      .map((result) => result.alternatives[0].transcript)
+      .join("\n");
+
+    // Handle INIT message
+    let promptText = transcript;
+    if (transcript === "___INIT_HELLO___") {
+      promptText = `You are acting as an AI interviewer named .  
 The interviewee is ${intervieweeName}.  
 The role is described as: "${jobDescription}".  
 
 Start the interview in a natural way (e.g., greet and ask the first question).`;
     }
 
-    // Get AI’s reply
-    const reply = await agentResponse(sessionId, promptText);
+   
+    const replyText = await agentResponse(sessionId, promptText);
+ 
 
-    
-    if (!sessions.has(sessionId)) {
-      sessions.set(sessionId, { history: [] });
-    }
-    const storedSession = sessions.get(sessionId);
-    storedSession.meta = {
-      interviewee: intervieweeName,
-      interviewer: interviewerName,
-      jobDescription,
-    };
+    // --- 3. Text to Speech ---
+    const [ttsResponse] = await ttsClient.synthesizeSpeech({
+      input: { text: replyText },
+      voice: { languageCode: "en-US", ssmlGender: "NEUTRAL" },
+      audioConfig: { audioEncoding: "MP3" },
+    });
 
-    // Send back AI response + sessionId (so frontend can keep track)
+    const replyAudioBase64 = ttsResponse.audioContent.toString("base64");
+
+    // --- 4. Send back transcript + AI reply + audio ---
     res.json({
-      reply,
+      transcript, // what user said (from STT)
+      replyText, // AI reply (text)
+      replyAudio: replyAudioBase64, // AI reply (audio, base64 MP3)
       sessionId,
-      meta: storedSession.meta,
+      
     });
   } catch (error) {
-    console.log("Gemini key:", process.env.GEMINI_API_KEY?.slice(0, 6)); 
     console.error("Error in LiveCalling:", error);
-    res.status(500).json({ message: "Error generating AI response" });
+    res.status(500).json({ message: "Error processing live call" });
   }
 }

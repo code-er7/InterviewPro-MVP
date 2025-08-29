@@ -5,6 +5,8 @@ import connectDB from "./config/db.js";
 import dotenv from "dotenv";
 import datarouter from "./Routes/dataroutes.js";
 import agentRouter from "./Routes/agetnRoutes.js";
+import bodyParser from "body-parser";
+
 
 dotenv.config();
 const app = express();
@@ -16,6 +18,7 @@ app.use(
     credentials: true,
   })
 );
+app.use(bodyParser.json({ limit: "50mb" }));
 export const sessions = new Map(); 
 app.use(express.json());
 
