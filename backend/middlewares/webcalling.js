@@ -1,34 +1,33 @@
-import express from "express";
-import fetch from "node-fetch";
+import axios from "axios";
 
-const app = express();
-
-// Daily API key (store in .env)
 const DAILY_API_KEY = process.env.DAILY_API_KEY;
-
-app.post("/create-room", async (req, res) => {
+console.log("++++++++++++_____________________++++++++++++++++");
+console.log(DAILY_API_KEY);
+async function createDailyRoom() {
   try {
-    const response = await fetch("https://api.daily.co/v1/rooms", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${DAILY_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    const response = await axios.post(
+      "https://api.daily.co/v1/rooms",
+      {
         properties: {
-          exp: Math.round(Date.now() / 1000) + 60 * 60, // room expires in 1 hour
           enable_chat: true,
-          start_audio_off: false,
+          enable_knocking: false,
           start_video_off: false,
+          start_audio_off: false,
         },
-      }),
-    });
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${DAILY_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
 
-    const data = await response.json();
-    res.json(data); // contains room_url
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    return response.data.url; // The room URL
+  } catch (error) {
+    console.error("Error creating Daily room:", error.response?.data || error);
+    throw error;
   }
-});
+}
 
-app.listen(5000, () => console.log("Server running on 5000"));
+export default createDailyRoom;

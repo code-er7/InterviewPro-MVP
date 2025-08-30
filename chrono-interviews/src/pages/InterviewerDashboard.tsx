@@ -122,6 +122,35 @@ const InterviewerDashboard = () => {
     setSelectedCandidate(candidate);
     setIsScheduleModalOpen(true);
   };
+  const handleJoinMeeting = async (interviewId: string) => {
+    try {
+      const token = localStorage.getItem("token");
+
+      const res = await axios.post(
+        "http://localhost:4000/api/interview/create",
+        { interviewId },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const { session } = res.data;
+      if (!session?.link) {
+        alert("Could not get meeting link");
+        return;
+      }
+
+      // Navigate to meeting page with meeting data
+      navigate("/meeting", {
+        state: { link: session.link, session },
+      });
+    } catch (err) {
+      console.error("Error joining meeting:", err);
+      alert("Failed to join meeting");
+    }
+  };
 
   const isEventLive = (eventDate: Date) => {
     const now = new Date();
@@ -232,7 +261,7 @@ const InterviewerDashboard = () => {
                     {isEventLive(event.date) && (
                       <Button
                         className="w-full bg-gradient-hero hover:opacity-90"
-                        onClick={() => navigate("/meeting")}
+                        onClick={() => handleJoinMeeting(event.id)}
                       >
                         <Video className="h-4 w-4 mr-2" />
                         Join Interview

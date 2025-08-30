@@ -5,7 +5,8 @@ export const scheduleInterview = async (req, res) => {
   try {
     const { intervieweeId, date, time, jobDescription , isAI } = req.body;
 
-    if (!intervieweeId || !date  || !jobDescription || !isAI) {
+    if (!intervieweeId || !date  || !jobDescription ) {
+      console.log(intervieweeId , date , jobDescription , isAI) ;
       return res.status(400).json({ message: "All fields are required" });
     }
 
@@ -48,6 +49,7 @@ export const getInterviewerInterviews = async (req, res) => {
     console.log(req.user);
     const interviews = await Interview.find({
       interviewer: interviewerId,
+      isAI : false ,
     }).populate("interviewee", "name email role");
     res.json(interviews);
   } catch (error) {

@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, Video, User } from "lucide-react";
 import { format } from "date-fns";
 import DashboardNavbar from "@/components/DashboardNavbar";
+import axios from 'axios';
 
 interface Interview {
   id: number;
@@ -116,14 +117,34 @@ const IntervieweeDashboard = () => {
           },
         });
       } else {
-        // Non-AI interview → redirect to meeting page (daily.co etc.)
-        navigate("/meeting", {
-          state: {
-            interviewId: interview.id,
-            jobDescription: interview.jobDescription,
-            interviewerName: interview.interviewerName,
-          },
-        });
+        // Non-AI interview → redirect to meeting page 
+        try {
+          const token = localStorage.getItem("token");
+
+          const res = await axios.post(
+            "http://localhost:4000/api/interview/create",
+            { interviewId : interview.id },
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
+
+          const { session } = res.data;
+          if (!session?.link) {
+            alert("Could not get meeting link");
+            return;
+          }
+
+          // Navigate to meeting page with meeting data
+          navigate("/meeting", {
+            state: { link: session.link, session },
+          });
+        } catch (err) {
+          console.error("Error joining meeting:", err);
+          alert("Failed to join meeting");
+        }
       }
     } catch (err) {
       console.error("Error joining interview:", err);

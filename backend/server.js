@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import datarouter from "./Routes/dataroutes.js";
 import agentRouter from "./Routes/agetnRoutes.js";
 import bodyParser from "body-parser";
+import interviewRouter from "./Routes/interviewRoutes.js";
 
 
 dotenv.config();
@@ -29,6 +30,7 @@ app.get("/", (_req, res) => res.json({ ok: true }));
 app.use("/api/auth", userrouter);
 app.use("/api/data", datarouter);
 app.use("/api/ai", agentRouter);
+app.use("/api/interview" , interviewRouter) ;
 
 const PORT = process.env.PORT || 4000;
 connectDB();
