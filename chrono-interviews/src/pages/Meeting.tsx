@@ -23,10 +23,10 @@ const Meeting = () => {
 
   const location = useLocation();
   const navigate = useNavigate();
-  const { link, session } = location.state || {};
+  const { link, session, meetingToken } = location.state || {};
 
 
-  // Setup meeting iframe
+  // Setup meeting iframe + transcription
   useEffect(() => {
     if (!callRef.current || !link) return;
 
@@ -39,15 +39,33 @@ const Meeting = () => {
       },
     });
 
-    frame.join({ url: link });
+    // Join the call
+    frame.join({ url: link, token: meetingToken });
     dailyCall.current = frame;
 
-    // 👂 Listen for transcription events
-    (frame as any).on("transcription-received", (ev: any) => {
-      const { userId, text, timestamp } = ev;
+    // ✅ Wait until actually joined, then start transcription
+    frame.on("joined-meeting", async () => {
+      try {
+        await frame.startTranscription();
+        console.log("✅ Transcription started after join.");
+      } catch (err) {
+        console.error("❌ Failed to start transcription:", err);
+      }
+    });
+
+    // ✅ Listen for transcription events
+    frame.on("transcription-message", (ev: any) => {
+      console.log("📝 Transcription event received:", ev);
+
+      const { participantId, text, timestamp } = ev;
+
       setTranscript((prev) => [
         ...prev,
-        { speaker: userId || "Guest", text, timestamp },
+        {
+          speaker: participantId || "Guest",
+          text,
+          timestamp: new Date(timestamp).getTime() || Date.now(),
+        },
       ]);
     });
 
@@ -59,7 +77,7 @@ const Meeting = () => {
   // Controls
   const toggleMute = () => {
     if (dailyCall.current) {
-      dailyCall.current.setLocalAudio(isMuted); // if muted -> unmute
+      dailyCall.current.setLocalAudio(isMuted);
     }
     setIsMuted((prev) => !prev);
   };

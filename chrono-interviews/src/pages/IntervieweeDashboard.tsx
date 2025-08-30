@@ -77,7 +77,15 @@ const IntervieweeDashboard = () => {
     fetchInterviews();
   }, [navigate]);
 
-
+  function getRoomNameFromLink(link: string) {
+    try {
+      const url = new URL(link);
+      return url.pathname.replace("/", ""); // removes the leading "/"
+    } catch (e) {
+      console.error("Invalid link:", link);
+      return null;
+    }
+  }
    async function handleJoinMeeting (interview:any)  {
     const token = localStorage.getItem("token");
 
@@ -121,9 +129,10 @@ const IntervieweeDashboard = () => {
         try {
           const token = localStorage.getItem("token");
 
+          // 1. Create/fetch session
           const res = await axios.post(
             "http://localhost:4000/api/interview/create",
-            { interviewId : interview.id },
+            { interviewId : interview.id},
             {
               headers: {
                 Authorization: `Bearer ${token}`,
@@ -137,9 +146,21 @@ const IntervieweeDashboard = () => {
             return;
           }
 
-          // Navigate to meeting page with meeting data
+          const roomName = getRoomNameFromLink(session.link);
+
+          const tokenRes = await axios.post(
+            "http://localhost:4000/api/interview/token",
+            {
+              roomName: session.name, // or however you store it
+            }
+          );
+
+          const { meetingToken } = tokenRes.data;
+
+          console.log(meetingToken);
+          // 3. Navigate with both session + token
           navigate("/meeting", {
-            state: { link: session.link, session },
+            state: { link: session.link, session, meetingToken },
           });
         } catch (err) {
           console.error("Error joining meeting:", err);

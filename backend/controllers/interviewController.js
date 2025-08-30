@@ -1,6 +1,11 @@
 import createDailyRoom from "../middlewares/webcalling.js";
 import Interview from "../models/interviewSchema.js";
 import UserSession from "../models/userSession.js";
+import dotenv from 'dotenv' ;
+dotenv.config() ;
+
+
+const DAILY_API_KEY = process.env.DAILY_API_KEY ;
 
 export const createMeeting = async (req, res) => {
   try {
@@ -51,3 +56,27 @@ export const createMeeting = async (req, res) => {
     return res.status(500).json({ error: "Something went wrong" });
   }
 };
+
+
+export const createToken = async (req , res)=>{
+  const { roomName } = req.body;
+
+  const resp = await fetch("https://api.daily.co/v1/meeting-tokens", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${DAILY_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      properties: {
+        room_name: roomName,
+        permissions: {
+          canAdmin: ["transcription"], // ✅ every user can start transcription
+        },
+      },
+    }),
+  });
+
+  const data = await resp.json();
+  res.json({ meetingToken: data.token });
+}
