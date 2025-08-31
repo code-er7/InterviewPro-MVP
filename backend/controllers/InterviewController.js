@@ -1,12 +1,11 @@
-import resultAgent from "../agents/resultGeneratorAgent.js";
-import createDailyRoom from "../middlewares/webcalling.js";
+import resultAgent from "../agents/ResultGeneratorAgent.js";
+import createDailyRoom from "../middlewares/Webcalling.js";
 import Interview from "../models/interviewSchema.js";
 import UserSession from "../models/userSession.js";
-import dotenv from 'dotenv' ;
-dotenv.config() ;
+import dotenv from "dotenv";
+dotenv.config();
 
-
-const DAILY_API_KEY = process.env.DAILY_API_KEY ;
+const DAILY_API_KEY = process.env.DAILY_API_KEY;
 
 export const createMeeting = async (req, res) => {
   try {
@@ -58,8 +57,7 @@ export const createMeeting = async (req, res) => {
   }
 };
 
-
-export const createToken = async (req , res)=>{
+export const createToken = async (req, res) => {
   const { roomName } = req.body;
 
   const resp = await fetch("https://api.daily.co/v1/meeting-tokens", {
@@ -72,7 +70,7 @@ export const createToken = async (req , res)=>{
       properties: {
         room_name: roomName,
         permissions: {
-          canAdmin: ["transcription"], 
+          canAdmin: ["transcription"],
         },
       },
     }),
@@ -80,10 +78,7 @@ export const createToken = async (req , res)=>{
 
   const data = await resp.json();
   res.json({ meetingToken: data.token });
-}
-
-
-
+};
 
 export const endUserSession = async (req, res) => {
   try {
@@ -99,24 +94,27 @@ export const endUserSession = async (req, res) => {
       return res.status(404).json({ error: "Session not found" });
     }
 
-    // If already ended, return whatever 
+    // If already ended, return whatever
     if (session.state === "ended") {
       return res.status(200).json({ session });
     }
 
-   
     session.state = "ended";
 
     // Generate result from meeting transcriptions
     if (meeting_transcriptions && meeting_transcriptions.length > 0) {
-      // const airesult = await resultAgent(meeting_transcriptions);
-      // session.results = airesult; // NOTE: your schema uses `results` not `result`
+      const airesult = await resultAgent(meeting_transcriptions, false);
+      session.results = airesult; // NOTE: your schema uses `results` not `result`
 
-      console.log(meeting_transcriptions) ;
-      console.log("++++++++++++++++++++++++++__________________________++++++++++++++++++++++++++++++++") ;
+      console.log(meeting_transcriptions);
+      console.log(
+        "++++++++++++++++++++++++++__________________________++++++++++++++++++++++++++++++++"
+      );
     }
 
     await session.save();
+
+    //this should mimic the behaviour as and stop for 2 sec
 
     return res.status(200).json({ session });
   } catch (error) {

@@ -1,14 +1,13 @@
 import AIBotSession from "../models/aiBotSession.js";
 import Interview from "../models/interviewSchema.js";
-import agentResponse from "../agents/conversastionalAgent.js";
+import agentResponse from "../agents/ConversastionalAgent.js";
 import { sessions } from "../server.js";
 import speech from "@google-cloud/speech";
 import textToSpeech from "@google-cloud/text-to-speech";
-import resultAgent from "../agents/resultGeneratorAgent.js";
+import resultAgent from "../agents/ResultGeneratorAgent.js";
 
 const speechClient = new speech.SpeechClient();
 const ttsClient = new textToSpeech.TextToSpeechClient();
-
 
 export const createAIBotSession = async (req, res) => {
   try {
@@ -75,13 +74,9 @@ export const createAIBotSession = async (req, res) => {
   }
 };
 
-
-
-
-
 export async function LiveCalling(req, res) {
   try {
-    const { session, audio } = req.body; 
+    const { session, audio } = req.body;
 
     if (!audio || !session?._id) {
       return res.status(400).json({ message: "Invalid request body" });
@@ -124,9 +119,7 @@ The role is described as: "${jobDescription}".
 Start the interview in a natural way (e.g., greet and ask the first question).`;
     }
 
-   
     const replyText = await agentResponse(sessionId, promptText);
- 
 
     // --- 3. Text to Speech ---
     const [ttsResponse] = await ttsClient.synthesizeSpeech({
@@ -143,15 +136,12 @@ Start the interview in a natural way (e.g., greet and ask the first question).`;
       replyText, // AI reply (text)
       replyAudio: replyAudioBase64, // AI reply (audio, base64 MP3)
       sessionId,
-      
     });
   } catch (error) {
     console.error("Error in LiveCalling:", error);
     res.status(500).json({ message: "Error processing live call" });
   }
 }
-
-
 
 export async function endcall(req, res) {
   try {
@@ -172,7 +162,7 @@ export async function endcall(req, res) {
         : transcription;
 
     // Process the results
-    const result = await resultAgent(parsedTranscription);
+    const result = await resultAgent(parsedTranscription, true);
     session.results = result;
 
     await session.save();

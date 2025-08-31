@@ -16,17 +16,32 @@ function formatTranscript(transcriptionArray) {
   return formattedTranscript.trim();
 }
 
-async function resultAgent(transcriptionArray) {
+function formatInterviewTranscript(conversationArray) {
+  let formattedTranscript = "";
+  conversationArray.forEach((turn) => {
+    formattedTranscript += `${turn.speaker}: ${turn.text}\n\n`;
+  });
+  return formattedTranscript.trim();
+}
+
+async function resultAgent(transcriptionArray  , isAi) {
   // console.log("+++++++++++++++++++++++++++++++++++");
   // console.log("Original Transcript Array:");
   // console.log(transcriptionArray);
 
   // 1. Format the array into a clean string
-  const transcription = formatTranscript(transcriptionArray);
+  let transcription = "";
+  if(isAi==true){
+     transcription = formatTranscript(transcriptionArray);
+  }
+  else {
+    transcription = formatInterviewTranscript(transcriptionArray) ;
+  }
 
-  // console.log("Formatted Transcript for LLM:");
-  // console.log(transcription);
-  // console.log("+++++++++++++++++++++++++++++++++++");
+  console.log("Formatted Transcript for LLM:");
+  console.log(transcription);
+  console.log("+++++++++++++++++++++++++++++++++++");
+
 
   try {
     const prompt = `
@@ -44,6 +59,8 @@ Return ONLY a JSON object with these fields (1–10 scale for each):
   "communication": number,
   "problem_solving": number
 }
+
+try best to give in this format if data is not sufficent then give low random values but keep the format strictly the same !
 `;
 
     const result = await model.generateContent(prompt);
