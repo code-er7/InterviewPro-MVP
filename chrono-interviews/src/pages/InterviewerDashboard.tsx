@@ -177,10 +177,10 @@ const InterviewerDashboard = () => {
 
   const isEventLive = (eventDate: Date) => {
     const now = new Date();
-    // console.log(now);
-    // const timeDiff = eventDate.getTime() - now.getTime();
-    return 1 ;
-    // return timeDiff <= 300000 && timeDiff >= -300000; // 5 minutes before to 5 minutes after
+    console.log(now);
+    const timeDiff = eventDate.getTime() - now.getTime();
+    // return 1 ;
+    return timeDiff <= 300000 && timeDiff >= -300000; // 5 minutes before to 5 minutes after
   };
 
   return (

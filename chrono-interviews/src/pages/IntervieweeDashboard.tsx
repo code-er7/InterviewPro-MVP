@@ -177,8 +177,8 @@ const IntervieweeDashboard = () => {
   const isEventLive = (eventDate: Date) => {
     const now = new Date();
     const timeDiff = eventDate.getTime() - now.getTime();
-    // return timeDiff <= 300000 && timeDiff >= -300000;
-    return true ;
+    return timeDiff <= 300000 && timeDiff >= -300000;
+    // return true ;
   };
 
   const sortedInterviews = [...interviews].sort(

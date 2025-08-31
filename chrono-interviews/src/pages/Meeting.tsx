@@ -18,6 +18,7 @@ const Meeting = () => {
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [isEndingMeeting, setIsEndingMeeting] = useState(false);
+  const [meetingEnded, setMeetingEnded] = useState(false);
   const localIdRef = useRef<string | null>(null);
 
   const callRef = useRef<HTMLDivElement>(null);
@@ -30,11 +31,48 @@ const Meeting = () => {
   // 👤 Get current user role from localStorage
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const myRole = user?.role || "guest"; // should be "interviewer" | "interviewee"
-  console.log(myRole);
+
+  // Check if meeting has already ended (stored in localStorage or sessionStorage)
+  useEffect(() => {
+    const endedMeetings = JSON.parse(
+      localStorage.getItem("endedMeetings") || "[]"
+    );
+    if (session && endedMeetings.includes(session)) {
+      // Meeting has already ended, redirect to 404 or dashboard
+      navigate("/404", { replace: true });
+      return;
+    }
+
+    // If no meeting data, redirect to dashboard
+    if (!link || !session) {
+      navigate("/dashboard", { replace: true });
+      return;
+    }
+  }, [session, link, navigate]);
+
+  // Prevent back navigation after meeting ends
+  useEffect(() => {
+    if (meetingEnded) {
+      // Replace current history entry so back button doesn't come here
+      window.history.replaceState(null, "", window.location.href);
+
+      // Add a popstate listener to prevent going back
+      const handlePopState = (event: PopStateEvent) => {
+        event.preventDefault();
+        navigate("/404", { replace: true });
+      };
+
+      window.addEventListener("popstate", handlePopState);
+
+      return () => {
+        window.removeEventListener("popstate", handlePopState);
+      };
+    }
+  }, [meetingEnded, navigate]);
 
   // Setup meeting iframe + transcription
   useEffect(() => {
-    if (!callRef.current || !link) return;
+    if (!callRef.current || !link || meetingEnded) return;
 
     const frame = DailyIframe.createFrame(callRef.current, {
       iframeStyle: {
@@ -52,7 +90,7 @@ const Meeting = () => {
     // ✅ When joined, save my participantId
     frame.on("joined-meeting", async (ev: any) => {
       const localId = ev.participants?.local?.session_id;
-      localIdRef.current = localId; // updates instantly
+      localIdRef.current = localId;
       console.log("localIdRef", localIdRef.current);
 
       try {
@@ -67,20 +105,11 @@ const Meeting = () => {
       console.log("📝 Transcription event received:", ev);
 
       const { participantId, text, timestamp } = ev;
-      console.log("this participant send the text ");
-
-      console.log(participantId);
-
-      console.log("this is the locaid");
-
-      console.log(localIdRef.current);
 
       let roleLabel: string;
       if (participantId === localIdRef.current) {
-        // it's me
         roleLabel = myRole === "interviewer" ? "Interviewer" : "Interviewee";
       } else {
-        // other person
         roleLabel = myRole === "interviewer" ? "Interviewee" : "Interviewer";
       }
 
@@ -97,11 +126,11 @@ const Meeting = () => {
     return () => {
       frame.destroy();
     };
-  }, [link, meetingToken, myRole]);
+  }, [link, meetingToken, myRole, meetingEnded]);
 
   // Controls
   const toggleMute = () => {
-    if (isEndingMeeting) return; // Prevent actions during loading
+    if (isEndingMeeting || meetingEnded) return;
 
     if (dailyCall.current) {
       dailyCall.current.setLocalAudio(isMuted);
@@ -110,7 +139,7 @@ const Meeting = () => {
   };
 
   const toggleVideo = () => {
-    if (isEndingMeeting) return; // Prevent actions during loading
+    if (isEndingMeeting || meetingEnded) return;
 
     if (dailyCall.current) {
       dailyCall.current.setLocalVideo(!isVideoOn);
@@ -119,7 +148,7 @@ const Meeting = () => {
   };
 
   const handleEndMeeting = async () => {
-    if (isEndingMeeting) return; // Prevent multiple clicks
+    if (isEndingMeeting || meetingEnded) return;
 
     setIsEndingMeeting(true);
 
@@ -137,8 +166,8 @@ const Meeting = () => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            session_id: session, // change to session.id if needed
-            meeting_transcriptions: transcript, // must be array
+            session_id: session,
+            meeting_transcriptions: transcript,
           }),
         }
       );
@@ -149,20 +178,32 @@ const Meeting = () => {
 
       const data = await response.json();
       const newSession = data.session;
-      
-      console.log(newSession);
 
-      // Navigate to results page with data
+      // Mark meeting as ended
+      setMeetingEnded(true);
+
+      // Store ended meeting ID to prevent future access
+      const endedMeetings = JSON.parse(
+        localStorage.getItem("endedMeetings") || "[]"
+      );
+      endedMeetings.push(session);
+      localStorage.setItem("endedMeetings", JSON.stringify(endedMeetings));
+
+      // Navigate to results page with replace: true to prevent back navigation
       navigate("/results", {
-        state: { session : newSession },
+        state: { session: newSession },
+        replace: true,
       });
     } catch (error) {
       console.error("Error ending meeting:", error);
-      // Reset loading state on error so user can try again
       setIsEndingMeeting(false);
-      // Optionally show error message to user here
     }
   };
+
+  // Don't render if meeting has ended (additional safety)
+  if (meetingEnded) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col relative">
