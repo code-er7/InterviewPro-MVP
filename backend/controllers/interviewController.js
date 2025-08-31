@@ -1,3 +1,4 @@
+import resultAgent from "../agents/resultGeneratorAgent.js";
 import createDailyRoom from "../middlewares/webcalling.js";
 import Interview from "../models/interviewSchema.js";
 import UserSession from "../models/userSession.js";
@@ -71,7 +72,7 @@ export const createToken = async (req , res)=>{
       properties: {
         room_name: roomName,
         permissions: {
-          canAdmin: ["transcription"], // ✅ every user can start transcription
+          canAdmin: ["transcription"], 
         },
       },
     }),
@@ -80,3 +81,46 @@ export const createToken = async (req , res)=>{
   const data = await resp.json();
   res.json({ meetingToken: data.token });
 }
+
+
+
+
+export const endUserSession = async (req, res) => {
+  try {
+    const { session_id, meeting_transcriptions } = req.body;
+
+    if (!session_id) {
+      return res.status(400).json({ error: "session_id is required" });
+    }
+
+    const session = await UserSession.findById(session_id);
+
+    if (!session) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    // If already ended, return whatever 
+    if (session.state === "ended") {
+      return res.status(200).json({ session });
+    }
+
+   
+    session.state = "ended";
+
+    // Generate result from meeting transcriptions
+    if (meeting_transcriptions && meeting_transcriptions.length > 0) {
+      // const airesult = await resultAgent(meeting_transcriptions);
+      // session.results = airesult; // NOTE: your schema uses `results` not `result`
+
+      console.log(meeting_transcriptions) ;
+      console.log("++++++++++++++++++++++++++__________________________++++++++++++++++++++++++++++++++") ;
+    }
+
+    await session.save();
+
+    return res.status(200).json({ session });
+  } catch (error) {
+    console.error("Error ending session:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};

@@ -8,7 +8,7 @@ import { PhoneOff, Mic, MicOff, Video, VideoOff } from "lucide-react";
 import DashboardNavbar from "@/components/DashboardNavbar";
 
 type TranscriptEntry = {
-  speaker: string;
+  speaker: string; // "Interviewer" | "Interviewee"
   text: string;
   timestamp: number;
 };
@@ -17,6 +17,7 @@ const Meeting = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
+  const localIdRef = useRef<string | null>(null);
 
   const callRef = useRef<HTMLDivElement>(null);
   const dailyCall = useRef<DailyCall | null>(null);
@@ -25,7 +26,10 @@ const Meeting = () => {
   const navigate = useNavigate();
   const { link, session, meetingToken } = location.state || {};
 
-
+  // 👤 Get current user role from localStorage
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const myRole = user?.role || "guest"; // should be "interviewer" | "interviewee"
+  console.log(myRole);
   // Setup meeting iframe + transcription
   useEffect(() => {
     if (!callRef.current || !link) return;
@@ -43,36 +47,57 @@ const Meeting = () => {
     frame.join({ url: link, token: meetingToken });
     dailyCall.current = frame;
 
-    // ✅ Wait until actually joined, then start transcription
-    frame.on("joined-meeting", async () => {
-      try {
-        await frame.startTranscription();
-        console.log("✅ Transcription started after join.");
-      } catch (err) {
-        console.error("❌ Failed to start transcription:", err);
-      }
-    });
+    // ✅ When joined, save my participantId
+  frame.on("joined-meeting", async (ev: any) => {
+    const localId = ev.participants?.local?.session_id;
+    localIdRef.current = localId; // updates instantly
+    console.log("localIdRef", localIdRef.current);
+
+    try {
+      await frame.startTranscription();
+    } catch (err) {
+      console.error("❌ Failed to start transcription:", err);
+    }
+  });
+
 
     // ✅ Listen for transcription events
     frame.on("transcription-message", (ev: any) => {
       console.log("📝 Transcription event received:", ev);
 
       const { participantId, text, timestamp } = ev;
+      console.log("this participant send the text "); 
+      
+      console.log(participantId) 
+
+      console.log("this is the locaid") ;
+      
+      console.log(localIdRef.current);
+
+      let roleLabel: string;
+      if (participantId === localIdRef.current) {
+        // it's me
+        roleLabel = myRole === "interviewer" ? "Interviewer" : "Interviewee";
+      } else {
+        // other person
+        roleLabel = myRole === "interviewer" ? "Interviewee" : "Interviewer";
+      }
 
       setTranscript((prev) => [
         ...prev,
         {
-          speaker: participantId || "Guest",
+          speaker: roleLabel,
           text,
           timestamp: new Date(timestamp).getTime() || Date.now(),
         },
       ]);
     });
 
+
     return () => {
       frame.destroy();
     };
-  }, [link]);
+  }, [link, meetingToken, myRole]);
 
   // Controls
   const toggleMute = () => {
@@ -93,7 +118,9 @@ const Meeting = () => {
     if (dailyCall.current) {
       dailyCall.current.leave();
     }
-    navigate("/results", { state: { session } });
+
+    // 👇 Pass transcript to results page
+    navigate("/results", { state: { session, transcript } });
   };
 
   return (
@@ -186,11 +213,13 @@ const Meeting = () => {
                       <div className="flex items-start gap-2">
                         <Badge
                           variant={
-                            t.speaker === "local" ? "outline" : "secondary"
+                            t.speaker === "Interviewer"
+                              ? "outline"
+                              : "secondary"
                           }
                           className="text-xs"
                         >
-                          {t.speaker === "local" ? "You" : t.speaker}
+                          {t.speaker}
                         </Badge>
                         <p className="text-sm">{t.text}</p>
                       </div>
