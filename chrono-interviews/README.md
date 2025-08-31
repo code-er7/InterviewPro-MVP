@@ -1,1 +1,0 @@
-this is the front end of the interview - pro which allows to schedule the in - plateform interview with both a AI bot and a Human , and generate result based on the intervieww answer by the agent 
